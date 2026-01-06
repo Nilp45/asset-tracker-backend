@@ -22,26 +22,11 @@ const transactionRoutes = require("./routes/transaction.routes");
 /* ================= APP ================= */
 const app = express();
 
-/* ================= CORS (ENV BASED) ================= */
-const allowedOrigins = process.env.FRONTEND_URLS
-  ? process.env.FRONTEND_URLS.split(",")
-  : [];
 
+/* ================= CORS (POC / TRIAL SAFE) ================= */
 app.use(cors({
-  origin: function (origin, callback) {
-    // allow non-browser tools (Postman)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(
-      new Error("CORS blocked: " + origin),
-      false
-    );
-  },
-  methods: ["GET", "POST", "OPTIONS"],
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
