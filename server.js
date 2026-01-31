@@ -19,18 +19,35 @@ const transactionRoutes = require("./routes/transaction.routes");
 
 const app = express();
 
-/* ================= CORS ================= */
-app.use(cors({
-  origin: [
-    "http://127.0.0.1:5500",
-    "http://localhost:5500"
-  ],
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
-app.options("*", cors());
+/* ================= CORS (PRODUCTION SAFE) ================= */
+const allowedOrigins = [
+  "http://localhost:5500",
+  "http://127.0.0.1:5500",
+  "https://asset-trackerv001.netlify.app"
+];
 
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow Postman / server-to-server / same-origin
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(
+      new Error("CORS blocked for origin: " + origin),
+      false
+    );
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
+
+app.options("*", cors());
 app.use(express.json());
+
 
 /* ================= DB ================= */
 mongoose.connect(process.env.MONGODB_URI)
