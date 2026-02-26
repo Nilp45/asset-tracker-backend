@@ -14,4 +14,4 @@ module.exports = function auth(req, res, next) {
   }
 };
 
-console.log("JWT SECRET:", process.env.JWT_SECRET);
+
