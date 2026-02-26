@@ -53,6 +53,13 @@ router.post("/", async (req, res) => {
       session.status = "completed";
     }
 
+    if (!asset.enabled) {
+      return res.status(403).json({
+        message: 'Asset disabled – approval required'
+      });
+    }
+
+
     await session.save();
 
     res.json({

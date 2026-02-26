@@ -43,6 +43,7 @@ const AssetSchema = new mongoose.Schema(
 
     status: {
       type: String,
+      enum: ["AVAILABLE", "AT_CUSTOMER", "AT_MAINTENANCE"],
       default: "AVAILABLE"
     },
 
@@ -52,6 +53,15 @@ const AssetSchema = new mongoose.Schema(
     }
   },
   { timestamps: true }
+
+  
 );
+
+statusHistory: [{
+  action: String,          // ENABLE / DISABLE
+  reason: String,
+  byUser: String,
+  at: { type: Date, default: Date.now }
+}]
 
 module.exports = mongoose.model("Asset", AssetSchema);

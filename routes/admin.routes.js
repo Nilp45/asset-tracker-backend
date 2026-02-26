@@ -130,37 +130,102 @@ router.post("/plants/:plantId/toggle", adminOnly, async (req, res) => {
 ================================================= */
 
 router.post("/add-assets", adminOnly, async (req, res) => {
-  const { assetType, quantity, customer, plantId, description, pmCycle } = req.body;
+  const {
+    assetType,
+    quantity,
+    customer,
+    plantId,
+    description,
+    pmCycle
+  } = req.body;
 
-  if (!assetType || !quantity || !customer || !plantId) {
+  if (!assetType || !quantity || !plantId) {
     return res.status(400).json({ error: "Missing asset fields" });
   }
 
-  let created = 0;
-  for (let i = 1; i <= quantity; i++) {
-    await Asset.create({
-      assetId: `${assetType}-${Date.now()}-${i}`,
-      assetType,
-      customer,
+  try {
+
+    // 1️⃣ Find last asset (ONLY new format)
+    const lastAsset = await Asset.findOne({
       plantId,
-      description,
-      pmCycle,
-      active: true
-    });
-    created++;
+      assetType,
+      assetId: { $regex: "^" + plantId + "/" + assetType + "/" }
+    }).sort({ createdAt: -1 });
+
+    let nextSerial = 1;
+
+    if (lastAsset) {
+      const parts = lastAsset.assetId.split("/");
+      const lastSerial = parseInt(parts[parts.length - 1]);
+
+      if (!isNaN(lastSerial)) {
+        nextSerial = lastSerial + 1;
+      }
+    }
+    
+    // 2️⃣ Generate date string YYYYMMDD
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const dateStr = `${yyyy}${mm}${dd}`;
+
+    const newAssets = [];
+
+    for (let i = 0; i < quantity; i++) {
+
+      const serialFormatted = String(nextSerial + i).padStart(6, "0");
+
+      const assetId = `${plantId}/${assetType}/${dateStr}/${serialFormatted}`;
+
+      newAssets.push({
+        assetId,
+        assetType,
+        customer,
+        plantId,
+        description,
+        pmCycle: pmCycle || null,
+        cycleSinceOk: 0,
+        active: true
+      });
+    }
+
+    await Asset.insertMany(newAssets);
+
+    res.json({ created: newAssets.length });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+/* SEARCH ASSETS */
+router.get("/assets/search", adminOnly, async (req, res) => {
+  const { assetId, plantId, assetType } = req.query;
+
+  const filter = {};
+
+  if (assetId) {
+    filter.assetId = { $regex: assetId, $options: "i" };
   }
 
-  res.json({ created });
+  if (plantId) {
+    filter.plantId = plantId;
+  }
+
+  if (assetType) {
+    filter.assetType = assetType;
+  }
+
+  try {
+    const assets = await Asset.find(filter).sort({ createdAt: -1 });
+    res.json(assets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-router.get("/assets/search", adminOnly, async (req, res) => {
-  const q = {};
-  if (req.query.assetId) q.assetId = req.query.assetId;
-  if (req.query.plantId) q.plantId = req.query.plantId;
-  if (req.query.assetType) q.assetType = req.query.assetType;
-
-  const assets = await Asset.find(q).sort({ assetId: 1 });
-  res.json(assets);
-});
 
 module.exports = router;
