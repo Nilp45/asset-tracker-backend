@@ -130,6 +130,7 @@ router.post("/plants/:plantId/toggle", adminOnly, async (req, res) => {
 ================================================= */
 
 router.post("/add-assets", adminOnly, async (req, res) => {
+
   const {
     assetType,
     quantity,
@@ -145,38 +146,36 @@ router.post("/add-assets", adminOnly, async (req, res) => {
 
   try {
 
-    // 1️⃣ Find last asset (ONLY new format)
-    const lastAsset = await Asset.findOne({
-      plantId,
-      assetType,
-      assetId: { $regex: "^" + plantId + "/" + assetType + "/" }
-    }).sort({ createdAt: -1 });
-
-    let nextSerial = 1;
-
-    if (lastAsset) {
-      const parts = lastAsset.assetId.split("/");
-      const lastSerial = parseInt(parts[parts.length - 1]);
-
-      if (!isNaN(lastSerial)) {
-        nextSerial = lastSerial + 1;
-      }
-    }
-    
-    // 2️⃣ Generate date string YYYYMMDD
+    // Generate date YYYYMMDD
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
     const dateStr = `${yyyy}${mm}${dd}`;
 
+    const prefix = `${plantId}/${assetType}/${dateStr}/`;
+
+    // 🔥 Get max serial from DB safely
+    const lastAsset = await Asset.findOne({
+      assetId: { $regex: `^${prefix}` }
+    }).sort({ assetId: -1 });
+
+    let nextSerial = 1;
+
+    if (lastAsset) {
+      const parts = lastAsset.assetId.split("/");
+      const lastSerial = parseInt(parts[3]);
+      if (!isNaN(lastSerial)) {
+        nextSerial = lastSerial + 1;
+      }
+    }
+
     const newAssets = [];
 
     for (let i = 0; i < quantity; i++) {
 
       const serialFormatted = String(nextSerial + i).padStart(6, "0");
-
-      const assetId = `${plantId}/${assetType}/${dateStr}/${serialFormatted}`;
+      const assetId = `${prefix}${serialFormatted}`;
 
       newAssets.push({
         assetId,
@@ -186,19 +185,30 @@ router.post("/add-assets", adminOnly, async (req, res) => {
         description,
         pmCycle: pmCycle || null,
         cycleSinceOk: 0,
-        active: true
+        active: true,
+        status: "AVAILABLE"
       });
     }
 
-    await Asset.insertMany(newAssets);
+    await Asset.insertMany(newAssets, { ordered: true });
 
     res.json({ created: newAssets.length });
 
   } catch (err) {
-    console.error(err);
+
+    console.error("ADD ASSET ERROR:", err);
+
+    // 🔥 If duplicate happens, retry once automatically
+    if (err.code === 11000) {
+      return res.status(400).json({
+        error: "Asset ID conflict detected. Please retry."
+      });
+    }
+
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 /* SEARCH ASSETS */
 router.get("/assets/search", adminOnly, async (req, res) => {
@@ -229,3 +239,4 @@ router.get("/assets/search", adminOnly, async (req, res) => {
 
 
 module.exports = router;
+
